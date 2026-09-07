@@ -63,7 +63,7 @@ test("third player goes to another room", () => {
   assert.equal(server.rooms.size, 2);
 });
 
-test("disconnect stops active run and empty rooms are cleaned up", () => {
+test("disconnect pauses active run for reconnect and abandoned rooms are cleaned up", () => {
   const server = new GameServer();
   const first = new FakeSocket();
   const second = new FakeSocket();
@@ -76,12 +76,16 @@ test("disconnect stops active run and empty rooms are cleaned up", () => {
 
   second.emit("close");
 
-  assert.equal(room.status, "waiting");
+  assert.equal(room.status, "reconnecting");
   assert.ok(
-    first.sent.some((message) => message.type === "opponent-disconnected"),
+    first.sent.some((message) => message.type === "player-disconnected"),
   );
 
   first.emit("close");
+  room.players.forEach((player) => {
+    player.disconnectedUntil = 0;
+  });
+  server.tick();
   assert.equal(server.rooms.size, 0);
 });
 
@@ -111,31 +115,66 @@ test("nickname length is validated and clients cannot choose seats", () => {
 });
 
 test("three-level progression pauses timers, saves once, and restarts cleanly", () => {
- let now=0; const runs=[];
- const room=new Room({id:'progression',now:()=>now,runStore:{saveRun:run=>runs.push(run)}});
- room.addPlayer(new FakeSocket(),'A'); room.addPlayer(new FakeSocket(),'B');
- now=4000; room.update(1/30);
- for(let level=0;level<3;level++) {
-   for(const gate of room.simulation.level.checkpoints) {
-     Object.assign(room.simulation.boat,{x:gate.x,z:gate.z}); room.update(1/30);
-   }
-   Object.assign(room.simulation.boat,{x:room.simulation.level.finish.x,z:room.simulation.level.finish.z}); room.update(1/30);
-   const elapsed=room.simulation.totalElapsedMs;
-   room.update(1/30); assert.equal(room.simulation.totalElapsedMs,elapsed);
-   if(level<2) { now+=GAME_CONSTANTS.levelAdvanceDelayMs; room.update(1/30); assert.equal(room.simulation.levelIndex,level+1); }
- }
- assert.equal(room.status,'finished'); assert.equal(runs.length,1); assert.equal(runs[0].levelTimes.length,3);
- room.restart(); assert.equal(room.status,'countdown'); assert.equal(room.simulation.levelIndex,0);
- assert.equal(room.nextLevelAt,0);
+  let now = 0;
+  const runs = [];
+  const room = new Room({
+    id: "progression",
+    now: () => now,
+    runStore: { saveRun: (run) => runs.push(run) },
+  });
+  room.addPlayer(new FakeSocket(), "A");
+  room.addPlayer(new FakeSocket(), "B");
+  now = 4000;
+  room.update(1 / 30);
+  for (let level = 0; level < 3; level++) {
+    for (const gate of room.simulation.level.checkpoints) {
+      Object.assign(room.simulation.boat, { x: gate.x, z: gate.z });
+      room.update(1 / 30);
+    }
+    Object.assign(room.simulation.boat, {
+      x: room.simulation.level.finish.x,
+      z: room.simulation.level.finish.z,
+    });
+    room.update(1 / 30);
+    const elapsed = room.simulation.totalElapsedMs;
+    room.update(1 / 30);
+    assert.equal(room.simulation.totalElapsedMs, elapsed);
+    if (level < 2) {
+      assert.equal(room.status, "level-complete");
+      now += GAME_CONSTANTS.celebrationMs;
+      room.handleMessage(room.players[0].socket, { type: "ready" });
+      assert.equal(room.status, "level-complete");
+      room.handleMessage(room.players[1].socket, { type: "ready" });
+      assert.equal(room.status, "countdown");
+      now += GAME_CONSTANTS.countdownMs;
+      room.update(1 / 30);
+      assert.equal(room.simulation.levelIndex, level + 1);
+    }
+  }
+  assert.equal(room.status, "game-complete");
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].levelTimes.length, 3);
+  now += GAME_CONSTANTS.celebrationMs;
+  room.handleMessage(room.players[0].socket, { type: "ready" });
+  assert.equal(room.status, "game-complete");
+  room.handleMessage(room.players[1].socket, { type: "ready" });
+  assert.equal(room.status, "countdown");
+  assert.equal(room.simulation.levelIndex, 0);
+  assert.equal(room.countdownReason, "replay");
 });
 
-test("restart during a transition cannot leave a stale level timer",()=> {
- let now=0; const room=new Room({id:'restart',now:()=>now});
- room.addPlayer(new FakeSocket(),'A'); room.addPlayer(new FakeSocket(),'B');
- room.nextLevelAt=100; room.restart(); now=150; room.update(1/30);
- assert.equal(room.status,'countdown'); assert.equal(room.simulation.levelIndex,0);
+test("restart request during a transition is ignored", () => {
+  let now = 0;
+  const room = new Room({ id: "restart", now: () => now });
+  room.addPlayer(new FakeSocket(), "A");
+  room.addPlayer(new FakeSocket(), "B");
+  room.handleMessage(room.players[0].socket, { type: "restart-request" });
+  now = 150;
+  room.update(1 / 30);
+  assert.equal(room.status, "countdown");
+  assert.equal(room.simulation.levelIndex, 0);
 });
 
-test("object nicknames cannot execute coercion or crash a join",()=> {
- assert.equal(sanitizeNickname({toString:null}),'Rower');
+test("object nicknames cannot execute coercion or crash a join", () => {
+  assert.equal(sanitizeNickname({ toString: null }), "Rower");
 });

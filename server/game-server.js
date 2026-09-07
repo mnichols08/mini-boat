@@ -18,17 +18,31 @@ class GameServer {
 
   handleConnection(socket) {
     socket.lastPongAt = this.now();
-    socket.on("pong", () => { socket.lastPongAt = this.now(); });
+    socket.on("pong", () => {
+      socket.lastPongAt = this.now();
+    });
     socket.on("message", (raw) => this.handleInitialMessage(socket, raw));
     socket.on("close", () => this.removeSocket(socket));
     socket.on("error", () => this.removeSocket(socket));
   }
 
   handleInitialMessage(socket, raw) {
-    if (this.socketRooms.has(socket)) {
+    const message = parseMessage(raw);
+    const existing = this.socketRooms.get(socket);
+    if (existing) {
+      if (
+        message?.type === CLIENT_MESSAGES.FIND_PARTNER &&
+        existing.status === "closed"
+      ) {
+        const player = existing.players.find((p) => p.socket === socket);
+        const name = player?.name;
+        this.removeSocket(socket);
+        const room = this.findOpenRoom();
+        room.addPlayer(socket, name);
+        this.socketRooms.set(socket, room);
+      }
       return;
     }
-    const message = parseMessage(raw);
     if (!message || message.type !== CLIENT_MESSAGES.JOIN) {
       this.send(socket, {
         type: SERVER_MESSAGES.ERROR,
@@ -36,8 +50,33 @@ class GameServer {
       });
       return;
     }
+    if (message.session !== undefined) {
+      if (typeof message.session !== "string" || message.session.length > 100)
+        return;
+      for (const room of this.rooms.values()) {
+        const player = room.players.find((p) => p.session === message.session);
+        if (!player) continue;
+        if (player.socket && room.status !== "closed") {
+          this.send(socket, {
+            type: SERVER_MESSAGES.ERROR,
+            code: "session-in-use",
+            message: "This rowing session is already connected in another tab.",
+          });
+          return;
+        }
+        if (room.restorePlayer(socket, message.session)) {
+          this.socketRooms.set(socket, room);
+          return;
+        }
+        this.send(socket, {
+          type: SERVER_MESSAGES.RECONNECT_EXPIRED,
+          message: "This rowing session has ended.",
+        });
+        return;
+      }
+    }
     const room = this.findOpenRoom();
-    room.addPlayer(socket, message.name);
+    room.addPlayer(socket, message.name, message.session);
     this.socketRooms.set(socket, room);
   }
 
@@ -71,10 +110,13 @@ class GameServer {
   tick(deltaSeconds = GAME_CONSTANTS.fixedDelta) {
     const now = this.now();
     for (const socket of this.socketRooms.keys()) {
-      if (now - socket.lastPongAt > 30000) {
+      if (now - socket.lastPongAt > GAME_CONSTANTS.heartbeatTimeoutMs) {
         this.removeSocket(socket);
         socket.terminate?.();
-      } else if (socket.ping && now - (socket.lastPingAt || 0) >= 10000) {
+      } else if (
+        socket.ping &&
+        now - (socket.lastPingAt || 0) >= GAME_CONSTANTS.heartbeatIntervalMs
+      ) {
         socket.lastPingAt = now;
         socket.ping();
       }

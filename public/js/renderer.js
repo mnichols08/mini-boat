@@ -42,7 +42,8 @@ export class LittleBoatRenderer {
   }
 
   setState(state) {
-    const reset = state.level !== this.currentLevelId ||
+    const reset =
+      state.level !== this.currentLevelId ||
       state.elapsedMs < (this.currentState?.elapsedMs || 0);
     this.currentState = state;
     if (reset) {
@@ -64,7 +65,20 @@ export class LittleBoatRenderer {
     const boat = this.interpolateBoat();
     const now = performance.now();
     this.water.splash(boat, side, synchronized, now);
-    if (synchronized) this.water.splash(boat, side === "left" ? "right" : "left", true, now);
+    if (synchronized)
+      this.water.splash(boat, side === "left" ? "right" : "left", true, now);
+  }
+
+  setSeat(seat) {
+    this.boat.setSeat(seat);
+  }
+
+  ping(side, ping, durationMs) {
+    this.boat.ping(side, ping, durationMs);
+  }
+
+  celebrate() {
+    this.boat.celebrate();
   }
 
   resetFeedback() {
@@ -103,14 +117,36 @@ export class LittleBoatRenderer {
     this.lastFrameAt = now;
     const boatState = this.interpolateBoat();
     this.boat.update(boatState, now);
-    this.water.update(boatState, now, this.currentState?.roomStatus === "playing");
+    this.water.update(
+      boatState,
+      now,
+      this.currentState?.roomStatus === "playing",
+    );
     if (boatState) {
-      const sideLead = THREE.MathUtils.clamp(boatState.velocityX * VIEW.cameraSideLead,
-        -VIEW.cameraMaxSideLead, VIEW.cameraMaxSideLead);
-      const forwardLead = THREE.MathUtils.clamp(boatState.velocityZ * VIEW.cameraSpeedLead, 0, VIEW.cameraMaxLead);
-      this.cameraTarget.set(boatState.x + sideLead, 0, boatState.z + VIEW.cameraAhead + forwardLead);
-      this.followTarget.lerp(this.cameraTarget, 1 - Math.exp(-VIEW.cameraResponse * delta));
-      this.camera.position.set(this.followTarget.x, 18, this.followTarget.z - 16);
+      const sideLead = THREE.MathUtils.clamp(
+        boatState.velocityX * VIEW.cameraSideLead,
+        -VIEW.cameraMaxSideLead,
+        VIEW.cameraMaxSideLead,
+      );
+      const forwardLead = THREE.MathUtils.clamp(
+        boatState.velocityZ * VIEW.cameraSpeedLead,
+        0,
+        VIEW.cameraMaxLead,
+      );
+      this.cameraTarget.set(
+        boatState.x + sideLead,
+        0,
+        boatState.z + VIEW.cameraAhead + forwardLead,
+      );
+      this.followTarget.lerp(
+        this.cameraTarget,
+        1 - Math.exp(-VIEW.cameraResponse * delta),
+      );
+      this.camera.position.set(
+        this.followTarget.x,
+        18,
+        this.followTarget.z - 16,
+      );
       this.camera.lookAt(this.followTarget);
     }
     this.renderer.render(this.scene, this.camera);

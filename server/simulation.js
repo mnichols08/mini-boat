@@ -39,6 +39,16 @@ class BoatSimulation {
   get synchronizedStrokes() { return this.runStats.synchronizedStrokes; }
   getRunStats() { return summarizeStats(this.runStats); }
 
+  restartLevel() {
+    // Discard only this attempt. Previously completed rivers still count.
+    this.totalElapsedMs = Math.max(0, this.totalElapsedMs - this.levelElapsedMs);
+    for (const key of Object.keys(this.runStats)) this.runStats[key] -= this.levelStats[key];
+    this.levelTimes.length = this.levelIndex;
+    this.levelSummaries.length = this.levelIndex;
+    this.completed = false;
+    this.loadLevel(this.levelIndex);
+  }
+
   incrementStat(key) {
     this.runStats[key] += 1;
     this.levelStats[key] += 1;

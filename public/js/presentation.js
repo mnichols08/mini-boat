@@ -21,6 +21,17 @@ export const VIEW = Object.freeze({
   cameraSideLead: 0.45,
   cameraMaxSideLead: 1.8,
   audioVolume: 0.12,
+  pingMs: 1600,
+  pingPopMs: 220,
+  celebrationMs: 1600,
+});
+
+export const PING_LABELS = Object.freeze({
+  row: "ROW!",
+  left: "LEFT!",
+  right: "RIGHT!",
+  wait: "WAIT!",
+  nice: "NICE!",
 });
 
 export function formatTime(ms) {
@@ -33,11 +44,19 @@ export function formatTime(ms) {
 export function sampleBoat(snapshots, at) {
   if (!snapshots.length) return null;
   for (let i = 1; i < snapshots.length; i += 1) {
-    const a = snapshots[i - 1], b = snapshots[i];
+    const a = snapshots[i - 1],
+      b = snapshots[i];
     if (b.at < at) continue;
-    const alpha = Math.max(0, Math.min(1, (at - a.at) / Math.max(1, b.at - a.at)));
-    return Object.fromEntries(Object.keys(b.boat).map((key) =>
-      [key, a.boat[key] + (b.boat[key] - a.boat[key]) * alpha]));
+    const alpha = Math.max(
+      0,
+      Math.min(1, (at - a.at) / Math.max(1, b.at - a.at)),
+    );
+    return Object.fromEntries(
+      Object.keys(b.boat).map((key) => [
+        key,
+        a.boat[key] + (b.boat[key] - a.boat[key]) * alpha,
+      ]),
+    );
   }
   return snapshots.at(-1).boat;
 }

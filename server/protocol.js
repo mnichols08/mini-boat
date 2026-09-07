@@ -1,22 +1,4 @@
-const CLIENT_MESSAGES = Object.freeze({
-  JOIN: "join",
-  ROW: "row",
-  RESTART: "restart",
-});
-
-const SERVER_MESSAGES = Object.freeze({
-  JOINED: "joined",
-  WAITING: "waiting",
-  COUNTDOWN: "countdown",
-  STATE: "state",
-  STROKE: "stroke",
-  COLLISION: "collision",
-  CHECKPOINT: "checkpoint",
-  LEVEL_COMPLETE: "level-complete",
-  GAME_COMPLETE: "game-complete",
-  OPPONENT_DISCONNECTED: "opponent-disconnected",
-  ERROR: "error",
-});
+const { CLIENT_MESSAGES, SERVER_MESSAGES, PINGS, ROOM_STATES } = require("../public/shared/protocol.mjs");
 
 function parseMessage(raw) {
   if (typeof raw !== "string" && !Buffer.isBuffer(raw)) {
@@ -40,6 +22,8 @@ function serializeMessage(message) {
 module.exports = {
   CLIENT_MESSAGES,
   SERVER_MESSAGES,
+  PINGS,
+  ROOM_STATES,
   parseMessage,
   serializeMessage,
 };

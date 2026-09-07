@@ -33,7 +33,15 @@ const GAME_CONSTANTS = {
   recoveryImpulse: 0.65,
   recoveryTurnImpulse: 0.3,
   countdownMs: 3200,
-  levelAdvanceDelayMs: 5500,
+  pingCooldownMs: 750,
+  pingLifetimeMs: 1600,
+  reconnectGraceMs: 25000,
+  restartVoteTimeoutMs: 10000,
+  pauseRequestTimeoutMs: 10000,
+  requestCooldownMs: 12000,
+  celebrationMs: 1600,
+  heartbeatIntervalMs: 5000,
+  heartbeatTimeoutMs: 15000,
   nicknameMaxLength: 18,
 };
 
