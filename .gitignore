@@ -9,6 +9,7 @@ yarn-error.log*
 dist/
 build/
 coverage/
+.artifacts/
 
 .DS_Store
 Thumbs.db

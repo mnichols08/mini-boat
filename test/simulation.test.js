@@ -175,10 +175,10 @@ test("completing level 1 loads level 2 and completing level 3 ends run", () => {
   assert.equal(simulation.completed, true);
 });
 
-test("sync bonus is 20 percent for a pair with production constants", () => {
+test("sync bonus is 25 percent for a pair with production constants", () => {
   const sim = makeSimulation();
   sim.row('left', 0); sim.row('right', 0);
-  assert.ok(Math.abs(sim.boat.velocityZ - 2 * GAME_CONSTANTS.strokeImpulse * 1.2) < 1e-10);
+  assert.ok(Math.abs(sim.boat.velocityZ - 2 * GAME_CONSTANTS.strokeImpulse * 1.25) < 1e-10);
 });
 
 test("sustained bank contact counts once and a later impact counts again", () => {

@@ -1,6 +1,8 @@
 import * as THREE from "/vendor/three.module.js";
 import { BoatView } from "./boat-view.js";
 import { WorldView } from "./world-view.js";
+import { WaterEffects } from "./water-effects.js";
+import { VIEW, sampleBoat } from "./presentation.js";
 
 export class LittleBoatRenderer {
   constructor(host) {
@@ -18,11 +20,13 @@ export class LittleBoatRenderer {
     this.world = new WorldView(this.scene);
     this.boat = new BoatView();
     this.scene.add(this.boat.group);
+    this.water = new WaterEffects(this.scene);
     this.levels = new Map();
     this.currentLevelId = null;
-    this.previousState = null;
     this.currentState = null;
-    this.currentReceivedAt = performance.now();
+    this.snapshots = [];
+    this.lastFrameAt = performance.now();
+    this.cameraTarget = new THREE.Vector3();
     this.followTarget = new THREE.Vector3(0, 0, 7);
 
     this.addLighting();
@@ -38,14 +42,17 @@ export class LittleBoatRenderer {
   }
 
   setState(state) {
-    if (this.currentState && state.collisions > this.currentState.collisions) {
-      this.boat.bumpUntil = performance.now() + 450;
-    }
-    this.previousState = this.currentState || state;
+    const reset = state.level !== this.currentLevelId ||
+      state.elapsedMs < (this.currentState?.elapsedMs || 0);
     this.currentState = state;
-    this.currentReceivedAt = performance.now();
+    if (reset) {
+      this.snapshots = [];
+      this.resetFeedback();
+      this.followTarget.set(state.boat.x, 0, state.boat.z + VIEW.cameraAhead);
+    }
+    this.snapshots.push({ at: performance.now(), boat: state.boat });
+    if (this.snapshots.length > 12) this.snapshots.shift();
     if (state.level !== this.currentLevelId) {
-      this.previousState = state;
       this.currentLevelId = state.level;
       this.world.setLevel(this.levels.get(state.level));
     }
@@ -53,7 +60,20 @@ export class LittleBoatRenderer {
   }
 
   stroke(side, synchronized = false) {
-    this.boat.stroke(side, synchronized);
+    this.boat.stroke(side);
+    const boat = this.interpolateBoat();
+    const now = performance.now();
+    this.water.splash(boat, side, synchronized, now);
+    if (synchronized) this.water.splash(boat, side === "left" ? "right" : "left", true, now);
+  }
+
+  resetFeedback() {
+    this.boat.resetFeedback();
+    this.water.reset();
+  }
+
+  collision(event) {
+    this.boat.bump(event);
   }
 
   addLighting() {
@@ -78,12 +98,18 @@ export class LittleBoatRenderer {
   }
 
   render() {
+    const now = performance.now();
+    const delta = Math.min(0.05, (now - this.lastFrameAt) / 1000);
+    this.lastFrameAt = now;
     const boatState = this.interpolateBoat();
-    this.boat.update(boatState);
+    this.boat.update(boatState, now);
+    this.water.update(boatState, now, this.currentState?.roomStatus === "playing");
     if (boatState) {
-      const targetX = boatState.x;
-      const targetZ = boatState.z + 7;
-      this.followTarget.lerp(new THREE.Vector3(targetX, 0, targetZ), 0.055);
+      const sideLead = THREE.MathUtils.clamp(boatState.velocityX * VIEW.cameraSideLead,
+        -VIEW.cameraMaxSideLead, VIEW.cameraMaxSideLead);
+      const forwardLead = THREE.MathUtils.clamp(boatState.velocityZ * VIEW.cameraSpeedLead, 0, VIEW.cameraMaxLead);
+      this.cameraTarget.set(boatState.x + sideLead, 0, boatState.z + VIEW.cameraAhead + forwardLead);
+      this.followTarget.lerp(this.cameraTarget, 1 - Math.exp(-VIEW.cameraResponse * delta));
       this.camera.position.set(this.followTarget.x, 18, this.followTarget.z - 16);
       this.camera.lookAt(this.followTarget);
     }
@@ -92,24 +118,6 @@ export class LittleBoatRenderer {
   }
 
   interpolateBoat() {
-    if (!this.currentState) {
-      return null;
-    }
-    if (!this.previousState) {
-      return this.currentState.boat;
-    }
-    const interval = 1000 / 18;
-    const alpha = Math.min(
-      1,
-      (performance.now() - this.currentReceivedAt) / interval,
-    );
-    const previous = this.previousState.boat;
-    const current = this.currentState.boat;
-    return {
-      x: previous.x + (current.x - previous.x) * alpha,
-      z: previous.z + (current.z - previous.z) * alpha,
-      rotation:
-        previous.rotation + (current.rotation - previous.rotation) * alpha,
-    };
+    return sampleBoat(this.snapshots, performance.now() - VIEW.interpolationMs);
   }
 }

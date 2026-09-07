@@ -228,6 +228,10 @@ class Room {
         });
       }
 
+      for (const collision of result.collisions || []) {
+        this.broadcast({ type: SERVER_MESSAGES.COLLISION, ...collision });
+      }
+
       if (result.levelComplete) {
         this.onLevelComplete();
       }
@@ -240,7 +244,11 @@ class Room {
   }
 
   onLevelComplete() {
-    const state = this.simulation.getState();
+    this.broadcast({
+      type: SERVER_MESSAGES.LEVEL_COMPLETE,
+      ...this.simulation.levelSummaries[this.simulation.levelIndex],
+      nextStartsAt: this.simulation.completed ? null : this.now() + GAME_CONSTANTS.levelAdvanceDelayMs,
+    });
     if (this.simulation.completed) {
       this.status = "finished";
       const run = this.getCompletedRun();
@@ -254,16 +262,6 @@ class Room {
     this.status = "countdown";
     this.nextLevelAt = this.now() + GAME_CONSTANTS.levelAdvanceDelayMs;
     this.countdownEndsAt = this.nextLevelAt;
-    this.broadcast({
-      type: SERVER_MESSAGES.LEVEL_COMPLETE,
-      level: state.level,
-      levelName: state.levelName,
-      timeMs: this.simulation.levelTimes[this.simulation.levelIndex],
-      collisions: state.collisions,
-      synchronizedStrokes: state.synchronizedStrokes,
-      strokes: state.strokes,
-      nextStartsAt: this.nextLevelAt,
-    });
   }
 
   getCompletedRun() {
@@ -271,9 +269,8 @@ class Room {
       players: this.players.map((player) => player.name),
       levelTimes: [...this.simulation.levelTimes],
       totalTimeMs: Math.round(this.simulation.totalElapsedMs),
-      collisions: this.simulation.collisions,
-      synchronizedStrokes: this.simulation.synchronizedStrokes,
-      strokes: this.simulation.strokes,
+      levelSummaries: this.simulation.levelSummaries.map((summary) => ({ ...summary })),
+      ...this.simulation.getRunStats(),
     };
   }
 

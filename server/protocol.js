@@ -10,6 +10,7 @@ const SERVER_MESSAGES = Object.freeze({
   COUNTDOWN: "countdown",
   STATE: "state",
   STROKE: "stroke",
+  COLLISION: "collision",
   CHECKPOINT: "checkpoint",
   LEVEL_COMPLETE: "level-complete",
   GAME_COMPLETE: "game-complete",

@@ -1,4 +1,5 @@
 import * as THREE from "/vendor/three.module.js";
+import { VIEW } from "./presentation.js";
 
 const LEFT_COLOR = 0xf28c38;
 const RIGHT_COLOR = 0x3b8adf;
@@ -7,8 +8,8 @@ export class BoatView {
   constructor() {
     this.group = new THREE.Group();
     this.oars = new Map();
-    this.splashes = [];
     this.buildBoat();
+    this.resetFeedback();
   }
 
   buildBoat() {
@@ -145,65 +146,51 @@ export class BoatView {
     this.group.add(oarGroup);
   }
 
-  stroke(side, synchronized = false) {
+  stroke(side) {
     const oar = this.oars.get(side);
     if (!oar) {
       return;
     }
-    oar.userData.strokeUntil = performance.now() + 360;
-    this.makeSplash(side, synchronized);
+    oar.userData.strokeUntil = performance.now() + VIEW.strokeMs;
   }
 
-  makeSplash(side, synchronized) {
-    const material = new THREE.MeshBasicMaterial({
-      color: synchronized ? 0xfff7a3 : 0xdff9ff,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.05, synchronized ? 0.2 : 0.14, 16),
-      material,
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(
-      side === "left" ? 2.2 : -2.2,
-      0.06,
-      side === "left" ? -0.9 : 0.9,
-    );
-    ring.userData.createdAt = performance.now();
-    ring.userData.life = synchronized ? 520 : 360;
-    this.group.add(ring);
-    this.splashes.push(ring);
+  resetFeedback() {
+    for (const oar of this.oars.values()) {
+      oar.userData.strokeUntil = 0;
+      oar.rotation.set(0, 0, 0);
+    }
+    this.bumpUntil = 0;
+    this.bumpStrength = 0;
+    this.group.rotation.x = 0;
+    this.group.rotation.z = 0;
   }
 
-  update(boatState) {
+  bump({ kind, strength, normalX, normalZ }) {
+    this.bumpUntil = performance.now() + VIEW.bumpMs;
+    this.bumpStrength = (kind === "rock" ? 1 : 0.55) * (0.4 + strength * 0.6);
+    const heading = -this.group.rotation.y;
+    this.bumpSide = Math.sign(normalX * Math.cos(heading) + normalZ * Math.sin(heading)) || 1;
+  }
+
+  update(boatState, now = performance.now()) {
     if (boatState) {
       this.group.position.set(boatState.x, 0, boatState.z);
       this.group.rotation.y = -boatState.rotation;
     }
 
-    const now = performance.now();
-    const bump = Math.max(0, (this.bumpUntil || 0) - now) / 450;
-    this.group.rotation.z = Math.sin(bump * Math.PI * 4) * bump * 0.12;
+    const bump = Math.max(0, this.bumpUntil - now) / VIEW.bumpMs;
+    let roll = Math.sin(bump * Math.PI * 3) * bump * VIEW.bumpRock * this.bumpStrength * (this.bumpSide || 1);
+    let pitch = Math.sin(bump * Math.PI * 2) * bump * VIEW.bumpRock * this.bumpStrength * 0.5;
     for (const [side, oar] of this.oars) {
-      const progress = Math.max(0, (oar.userData.strokeUntil - now) / 360);
+      const progress = Math.min(1, Math.max(0, (oar.userData.strokeUntil - now) / VIEW.strokeMs));
       const direction = side === "left" ? -1 : 1;
-      oar.rotation.y = direction * Math.sin(progress * Math.PI) * 0.75;
-      oar.rotation.x = -Math.sin(progress * Math.PI) * 0.22;
+      const pull = Math.sin(progress * Math.PI);
+      oar.rotation.y = direction * pull * VIEW.oarSweep;
+      oar.rotation.z = direction * pull * VIEW.oarDip;
+      roll += direction * Math.sin(progress * Math.PI * 2) * VIEW.rowRock;
+      pitch += pull * VIEW.rowRock * 0.35;
     }
-
-    this.splashes = this.splashes.filter((splash) => {
-      const age = now - splash.userData.createdAt;
-      const progress = age / splash.userData.life;
-      splash.scale.setScalar(1 + progress * 2.8);
-      splash.material.opacity = Math.max(0, 0.75 * (1 - progress));
-      if (progress >= 1) {
-        splash.removeFromParent();
-        splash.geometry.dispose();
-        splash.material.dispose();
-        return false;
-      }
-      return true;
-    });
+    this.group.rotation.z = roll;
+    this.group.rotation.x = pitch;
   }
 }

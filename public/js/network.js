@@ -26,7 +26,7 @@ export class BoatNetwork extends EventTarget {
     this.socket.addEventListener("close", () => {
       this.dispatchEvent(
         new CustomEvent("message", {
-          detail: { type: "error", message: "Connection closed." },
+            detail: { type: "connection-closed", message: "Connection closed." },
         }),
       );
     });

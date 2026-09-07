@@ -1,6 +1,6 @@
 {
   "name": "mini-boat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A tiny two-player cooperative rowboat game.",
   "main": "server/server.js",
   "scripts": {

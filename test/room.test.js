@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { GameServer } = require("../server/game-server");
 const { Room, sanitizeNickname } = require("../server/room");
+const { GAME_CONSTANTS } = require("../server/constants");
 
 class FakeSocket {
   constructor() {
@@ -121,7 +122,7 @@ test("three-level progression pauses timers, saves once, and restarts cleanly", 
    Object.assign(room.simulation.boat,{x:room.simulation.level.finish.x,z:room.simulation.level.finish.z}); room.update(1/30);
    const elapsed=room.simulation.totalElapsedMs;
    room.update(1/30); assert.equal(room.simulation.totalElapsedMs,elapsed);
-   if(level<2) { now+=4000; room.update(1/30); assert.equal(room.simulation.levelIndex,level+1); }
+   if(level<2) { now+=GAME_CONSTANTS.levelAdvanceDelayMs; room.update(1/30); assert.equal(room.simulation.levelIndex,level+1); }
  }
  assert.equal(room.status,'finished'); assert.equal(runs.length,1); assert.equal(runs[0].levelTimes.length,3);
  room.restart(); assert.equal(room.status,'countdown'); assert.equal(room.simulation.levelIndex,0);
