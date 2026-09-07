@@ -7,8 +7,13 @@ const { GameServer } = require("./game-server");
 const { LEVELS } = require("./levels");
 const { RunStore } = require("./db");
 
-try { process.loadEnvFile(); } catch (error) { if (error.code !== "ENOENT") throw error; }
+try {
+  process.loadEnvFile();
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+}
 const PORT = Number(process.env.PORT || 3000);
+const HOST = "0.0.0.0";
 const app = express();
 const server = http.createServer(app);
 const runStore = new RunStore();
@@ -37,8 +42,8 @@ const tickTimer = setInterval(() => {
   gameServer.tick(GAME_CONSTANTS.fixedDelta);
 }, 1000 / GAME_CONSTANTS.tickRate);
 
-server.listen(PORT, () => {
-  console.log(`The Little Boat is rowing at http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`The Little Boat is rowing at http://${HOST}:${PORT}`);
 });
 
 async function shutdown() {
